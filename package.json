@@ -9,7 +9,8 @@
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
     "preview": "vite preview",
-    "start": "serve -s dist -p $PORT"
+    "start": "npx serve -s dist -p $PORT"
+
 
   },
   "dependencies": {
