@@ -25,9 +25,10 @@ programs/*/Cargo.lock
 
 # Ignore rift_score if it's a temporary folder
 rift_score
+programs
+
 
 # Supabase (not used)
-supabase
 
 # Editor directories and files
 .vscode/*

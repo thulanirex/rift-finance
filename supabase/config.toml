@@ -1,0 +1,100 @@
+project_id = "awhmhwjkvckxaeizowou"
+
+[functions.funders-case]
+verify_jwt = true
+
+[functions.funders-decision]
+verify_jwt = true
+
+[functions.funders-profile]
+verify_jwt = true
+
+[functions.funders-request-more]
+verify_jwt = true
+
+[functions.funders-submit]
+verify_jwt = true
+
+[functions.gate-status]
+verify_jwt = false
+
+[functions.gate-verify]
+verify_jwt = true
+
+[functions.invoice-approve]
+verify_jwt = true
+
+[functions.invoice-file]
+verify_jwt = true
+
+[functions.invoice-mint-cnft]
+verify_jwt = true
+
+[functions.invoice-submit]
+verify_jwt = true
+
+[functions.invoice-upload]
+verify_jwt = true
+
+[functions.kyb-decision]
+verify_jwt = true
+
+[functions.kyb-request-more]
+verify_jwt = true
+
+[functions.kyb-submit]
+verify_jwt = true
+
+[functions.pool-allocate]
+verify_jwt = true
+
+[functions.relayer-submit]
+verify_jwt = true
+
+[functions.repayment-mark]
+verify_jwt = true
+
+[functions.rift-score-calc]
+verify_jwt = true
+
+[functions.rift-score-override]
+verify_jwt = true
+
+[functions.rift-score-seed]
+verify_jwt = true
+
+[functions.rift-score-get]
+verify_jwt = false
+
+[functions.pools-list]
+verify_jwt = false
+
+[functions.positions-my]
+verify_jwt = true
+
+[functions.pool-redeem]
+verify_jwt = true
+
+[functions.pool-credit-repayment]
+verify_jwt = true
+
+[functions.pool-yield-accrual]
+verify_jwt = false
+
+[functions.market-invoices]
+verify_jwt = false
+
+[functions.metrics-funder]
+verify_jwt = true
+
+[functions.payout-create]
+verify_jwt = true
+
+[functions.repayment-mark]
+verify_jwt = true
+
+[functions.ops-health]
+verify_jwt = true
+
+[functions.insurance-event]
+verify_jwt = true
