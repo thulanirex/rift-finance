@@ -11,11 +11,23 @@ node_modules
 dist
 dist-ssr
 *.local
-server
-programs
-supabase
-rift_score
 .env
+.env.local
+.env.production.local
+
+# Ignore server node_modules but not the server folder
+server/node_modules
+server/.env
+
+# Ignore build artifacts
+programs/*/target
+programs/*/Cargo.lock
+
+# Ignore rift_score if it's a temporary folder
+rift_score
+
+# Supabase (not used)
+supabase
 
 # Editor directories and files
 .vscode/*

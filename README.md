@@ -7,7 +7,7 @@ A modern web3 finance platform built with React, TypeScript, and Solana blockcha
 - **Solana Integration**: Connect and interact with Solana wallets
 - **Modern UI**: Built with React, shadcn/ui, and Tailwind CSS
 - **Type-Safe**: Full TypeScript support
-- **Supabase Backend**: Integrated with Supabase for data management
+- **MySQL Backend**: Node.js/Express API with MySQL database
 - **Responsive Design**: Mobile-friendly interface
 
 ## Tech Stack
@@ -17,7 +17,7 @@ A modern web3 finance platform built with React, TypeScript, and Solana blockcha
 - **Styling**: Tailwind CSS
 - **Blockchain**: Solana Web3.js, Wallet Adapter, Anchor Framework
 - **Smart Contract**: Rust (Anchor), SPL Token
-- **Backend**: Node.js/Express, Supabase
+- **Backend**: Node.js/Express, MySQL
 - **State Management**: TanStack Query
 
 ## Getting Started
@@ -74,7 +74,7 @@ npm run dev
 │   ├── contexts/       # React contexts (AuthContext)
 │   ├── hooks/          # Custom hooks
 │   └── integrations/   # Third-party integrations
-├── supabase/           # Supabase configuration and migrations
+├── server/database/    # MySQL schema and migrations
 └── docs/               # Documentation
 ```
 
@@ -243,17 +243,23 @@ const { publicKey, signTransaction } = useWallet();
 Required environment variables:
 
 ```bash
+# Frontend (.env in root)
+VITE_API_URL=http://localhost:3001
+
+# Backend (server/.env)
+NODE_ENV=development
+PORT=3001
+DATABASE_HOST=localhost
+DATABASE_USER=your_mysql_user
+DATABASE_PASSWORD=your_mysql_password
+DATABASE_NAME=rift_finance_hub
+JWT_SECRET=your_secret_key
+CORS_ORIGIN=http://localhost:5173
+
 # Solana Configuration
-SOLANA_NETWORK=devnet                    # devnet, testnet, or mainnet-beta
+SOLANA_NETWORK=devnet
 SOLANA_RPC_URL=https://api.devnet.solana.com
 ANCHOR_PROGRAM_ID=5CjDfyjxz3ydsWUworZbBTwkkuDX8PTefbfn7Bu3Uu3b
-
-# Database
-DATABASE_URL=your_database_url
-
-# Supabase
-VITE_SUPABASE_URL=your_supabase_url
-VITE_SUPABASE_ANON_KEY=your_supabase_key
 ```
 
 ### Deployment
