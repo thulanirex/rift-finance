@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@/contexts/AuthContext';
 import { apiClient } from '@/lib/api-client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,36 +13,28 @@ import { Link } from 'react-router-dom';
 
 const Auth = () => {
   const navigate = useNavigate();
+  const { user, loading: authLoading, refreshUser } = useAuth();
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
+  // Redirect if already logged in
   useEffect(() => {
-    // Check if user is already logged in
-    const checkAuth = async () => {
-      try {
-        const user = await apiClient.auth.getUser();
-        if (user) {
-          // Redirect based on role
-          if (!user.role) {
-            navigate('/role-selection');
-          } else if (user.role === 'seller') {
-            navigate('/dashboard/seller');
-          } else if (user.role === 'funder') {
-            navigate('/dashboard/funder');
-          } else if (user.role === 'operator' || user.role === 'admin') {
-            navigate('/dashboard/operator');
-          }
-        }
-      } catch (error) {
-        // User not logged in, stay on auth page
+    if (!authLoading && user) {
+      console.log('🔐 Auth page: User already logged in, redirecting...');
+      if (!user.role) {
+        navigate('/role-selection', { replace: true });
+      } else if (user.role === 'seller') {
+        navigate('/dashboard/seller', { replace: true });
+      } else if (user.role === 'funder') {
+        navigate('/dashboard/funder', { replace: true });
+      } else if (user.role === 'operator' || user.role === 'admin') {
+        navigate('/dashboard/operator', { replace: true });
       }
-    };
-    
-    checkAuth();
-  }, [navigate]);
+    }
+  }, [user, authLoading, navigate]);
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -59,17 +52,26 @@ const Auth = () => {
     setLoading(true);
 
     try {
-      const { token, user } = await apiClient.auth.register({
+      console.log('🚀 Starting registration...');
+      const response = await apiClient.auth.register({
         email,
         password,
-        role: null // No default role - user must select
+        role: '', // Empty role - user must select
       });
       
-      apiClient.setToken(token);
-      toast.success('Account created! Please select your role.');
-      navigate('/role-selection');
+      console.log('✅ Registration response:', response);
+      
+      if (response.token) {
+        apiClient.setToken(response.token);
+        console.log('🔑 Token set, navigating to role selection...');
+        toast.success('Account created! Please select your role.');
+        navigate('/role-selection', { replace: true });
+      } else {
+        console.error('❌ No token in response');
+        toast.error('Registration failed - no token received');
+      }
     } catch (error: any) {
-      console.error('Registration error:', error);
+      console.error('❌ Registration error:', error);
       toast.error(error.message || 'Registration failed');
     } finally {
       setLoading(false);
@@ -81,25 +83,40 @@ const Auth = () => {
     setLoading(true);
 
     try {
+      console.log('🔐 Attempting login for:', email);
       const { token, user } = await apiClient.auth.login({
         email,
         password,
       });
       
+      console.log('✅ Login successful, user:', user);
       apiClient.setToken(token);
+      
+      // Refresh auth context
+      await refreshUser();
+      
       toast.success('Signed in successfully!');
       
       // Redirect based on role
+      console.log('🔀 Redirecting based on role:', user.role);
       if (!user.role) {
-        navigate('/role-selection');
+        console.log('➡️ No role, going to role selection');
+        navigate('/role-selection', { replace: true });
       } else if (user.role === 'seller') {
-        navigate('/dashboard/seller');
+        console.log('➡️ Seller role, going to seller dashboard');
+        navigate('/dashboard/seller', { replace: true });
       } else if (user.role === 'funder') {
-        navigate('/dashboard/funder');
+        console.log('➡️ Funder role, going to funder dashboard');
+        navigate('/dashboard/funder', { replace: true });
       } else if (user.role === 'operator' || user.role === 'admin') {
-        navigate('/dashboard/operator');
+        console.log('➡️ Operator/Admin role, going to operator dashboard');
+        navigate('/dashboard/operator', { replace: true });
+      } else {
+        console.warn('⚠️ Unknown role:', user.role);
+        navigate('/role-selection', { replace: true });
       }
     } catch (error: any) {
+      console.error('❌ Login error:', error);
       toast.error(error.message || 'Login failed');
     } finally {
       setLoading(false);

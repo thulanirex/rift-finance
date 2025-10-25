@@ -7,8 +7,10 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { Upload, Copy, FileText, Loader2 } from "lucide-react";
+import { apiClient } from "@/lib/api-client";
+import { AppLayout } from "@/components/AppLayout";
 
 const EU_COUNTRIES = [
   "Austria", "Belgium", "Bulgaria", "Croatia", "Cyprus", "Czech Republic",
@@ -22,7 +24,6 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
 export default function InvoiceNewConnected() {
   const navigate = useNavigate();
-  const { toast } = useToast();
   
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -52,20 +53,12 @@ export default function InvoiceNewConnected() {
     if (!selectedFile) return;
 
     if (selectedFile.type !== 'application/pdf') {
-      toast({
-        title: "Invalid file type",
-        description: "Only PDF files are allowed",
-        variant: "destructive",
-      });
+      toast.error("Only PDF files are allowed");
       return;
     }
 
     if (selectedFile.size > 10 * 1024 * 1024) {
-      toast({
-        title: "File too large",
-        description: "Maximum file size is 10MB",
-        variant: "destructive",
-      });
+      toast.error("Maximum file size is 10MB");
       return;
     }
 
@@ -77,17 +70,10 @@ export default function InvoiceNewConnected() {
       const hash = await calculateFileHash(selectedFile);
       setFileHash(hash);
 
-      toast({
-        title: "File loaded",
-        description: "Invoice PDF loaded and hash computed",
-      });
+      toast.success("Invoice PDF loaded and hash computed");
     } catch (error: any) {
       console.error("File processing error:", error);
-      toast({
-        title: "Processing failed",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast.error("Processing failed: " + error.message);
       setFile(null);
     } finally {
       setUploading(false);
@@ -96,39 +82,23 @@ export default function InvoiceNewConnected() {
 
   const handleSubmit = async () => {
     if (!file) {
-      toast({
-        title: "Upload file first",
-        description: "Please select an invoice PDF before submitting",
-        variant: "destructive",
-      });
+      toast.error("Please select an invoice PDF before submitting");
       return;
     }
 
     if (!confirmed) {
-      toast({
-        title: "Confirmation required",
-        description: "Please confirm that the details match the uploaded invoice",
-        variant: "destructive",
-      });
+      toast.error("Please confirm that the details match the uploaded invoice");
       return;
     }
 
     if (!invoiceNumber || !amount || !dueDate || !buyerName || !buyerCountry) {
-      toast({
-        title: "Missing fields",
-        description: "Please fill in all required fields",
-        variant: "destructive",
-      });
+      toast.error("Please fill in all required fields");
       return;
     }
 
     const amountNum = parseFloat(amount);
     if (amountNum < 100 || amountNum > 2000000) {
-      toast({
-        title: "Invalid amount",
-        description: "Amount must be between €100 and €2,000,000",
-        variant: "destructive",
-      });
+      toast.error("Amount must be between €100 and €2,000,000");
       return;
     }
 
@@ -137,75 +107,52 @@ export default function InvoiceNewConnected() {
     minDueDate.setDate(minDueDate.getDate() + 7);
 
     if (dueDateObj < minDueDate) {
-      toast({
-        title: "Invalid due date",
-        description: "Due date must be at least 7 days from today",
-        variant: "destructive",
-      });
+      toast.error("Due date must be at least 7 days from today");
       return;
     }
 
     setSubmitting(true);
 
     try {
-      // Get auth token
-      const token = localStorage.getItem('auth_token');
-      if (!token) {
-        throw new Error('Not authenticated');
-      }
+      console.log('📤 Uploading file to server...');
+      
+      // Upload file first
+      const uploadResult = await apiClient.upload.single(file);
+      console.log('✅ File uploaded:', uploadResult.file.url);
 
       // Create invoice via API
-      const response = await fetch(`${API_URL}/api/invoices`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          invoiceNumber,
-          amountEur: amountNum,
-          dueDate,
-          counterparty: buyerName,
-          buyerCountry,
-          buyerVat: buyerVat || null,
-          fileHash,
-          tenorDays: parseInt(tenor),
-          // Note: In production, you'd upload file to S3/IPFS and store URL
-          fileUrl: `local://${file.name}`,
-        })
+      console.log('📝 Creating invoice record...');
+      const invoice = await apiClient.invoices.create({
+        invoiceNumber,
+        amountEur: amountNum,
+        dueDate,
+        counterparty: buyerName,
+        buyerCountry,
+        buyerVat: buyerVat || null,
+        fileHash,
+        tenorDays: parseInt(tenor),
+        fileUrl: uploadResult.file.url,
       });
 
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to create invoice');
-      }
+      console.log('✅ Invoice created:', invoice.id);
 
-      const invoice = await response.json();
-
-      toast({
-        title: "Invoice created successfully!",
-        description: `Invoice ${invoiceNumber} has been submitted for review`,
-      });
+      toast.success(`Invoice ${invoiceNumber} has been submitted for review`);
 
       // Navigate to invoices list
       navigate("/invoices");
     } catch (error: any) {
       console.error("Submit error:", error);
-      toast({
-        title: "Submission failed",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast.error("Submission failed: " + error.message);
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 py-8">
-      <div className="container mx-auto px-4 max-w-4xl">
+    <AppLayout>
+      <div className="container mx-auto px-6 py-8 max-w-4xl">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+          <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
             Upload New Invoice
           </h1>
           <p className="text-slate-600 dark:text-slate-300 mt-1">
@@ -259,7 +206,7 @@ export default function InvoiceNewConnected() {
                       size="icon"
                       onClick={() => {
                         navigator.clipboard.writeText(fileHash);
-                        toast({ title: "Hash copied to clipboard" });
+                        toast.success("Hash copied to clipboard");
                       }}
                       className="ml-2"
                     >
@@ -434,6 +381,6 @@ export default function InvoiceNewConnected() {
           </Card>
         </div>
       </div>
-    </div>
+    </AppLayout>
   );
 }

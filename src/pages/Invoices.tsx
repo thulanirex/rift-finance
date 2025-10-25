@@ -11,9 +11,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { supabase } from "@/integrations/supabase/client";
+import { apiClient } from "@/lib/api-client";
 import { Plus, FileText, ExternalLink } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
+import { AppLayout } from "@/components/AppLayout";
 
 type Invoice = {
   id: string;
@@ -41,7 +42,6 @@ const STATUS_COLORS: Record<string, string> = {
 
 export default function Invoices() {
   const navigate = useNavigate();
-  const { toast } = useToast();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -51,43 +51,11 @@ export default function Invoices() {
 
   const loadInvoices = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        navigate("/");
-        return;
-      }
-
-      const { data: userData } = await supabase
-        .from("users")
-        .select("org_id, role")
-        .eq("auth_id", user.id)
-        .single();
-
-      if (!userData?.org_id) {
-        toast({
-          title: "No organization found",
-          description: "Please complete seller onboarding first",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      const { data, error } = await supabase
-        .from("invoices")
-        .select("*")
-        .eq("org_id", userData.org_id)
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-
+      const data = await apiClient.invoices.getAll();
       setInvoices(data || []);
     } catch (error: any) {
       console.error("Error loading invoices:", error);
-      toast({
-        title: "Failed to load invoices",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast.error("Failed to load invoices: " + error.message);
     } finally {
       setLoading(false);
     }
@@ -95,21 +63,23 @@ export default function Invoices() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Loading invoices...</p>
+      <AppLayout>
+        <div className="min-h-screen flex items-center justify-center">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+            <p className="text-muted-foreground">Loading invoices...</p>
+          </div>
         </div>
-      </div>
+      </AppLayout>
     );
   }
 
   if (invoices.length === 0) {
     return (
-      <div className="min-h-screen bg-background py-8">
-        <div className="container mx-auto px-4">
+      <AppLayout>
+        <div className="container mx-auto px-6 py-8">
           <div className="flex justify-between items-center mb-8">
-            <h1 className="text-3xl font-bold">My Invoices</h1>
+            <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">My Invoices</h1>
             <Button onClick={() => navigate("/invoices/new")}>
               <Plus className="mr-2 h-4 w-4" />
               Upload Invoice
@@ -130,16 +100,16 @@ export default function Invoices() {
             </CardContent>
           </Card>
         </div>
-      </div>
+      </AppLayout>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background py-8">
-      <div className="container mx-auto px-4">
+    <AppLayout>
+      <div className="container mx-auto px-6 py-8">
         <div className="flex justify-between items-center mb-8">
           <div>
-            <h1 className="text-3xl font-bold mb-2">My Invoices</h1>
+            <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent mb-2">My Invoices</h1>
             <p className="text-muted-foreground">
               Manage and track your submitted invoices
             </p>
@@ -231,6 +201,6 @@ export default function Invoices() {
           </CardContent>
         </Card>
       </div>
-    </div>
+    </AppLayout>
   );
 }

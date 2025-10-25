@@ -14,6 +14,7 @@ import { RoleGuard } from "./components/auth/RoleGuard";
 
 // Layouts
 import { DashboardLayout } from "./components/layouts/DashboardLayout";
+import { AppLayout } from "./components/AppLayout";
 
 // Pages
 import Index from "./pages/Index";
@@ -194,9 +195,9 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <RoleGuard allowedRoles={['operator', 'admin']}>
-                    <DashboardLayout>
+                    <AppLayout>
                       <OperatorDashboard />
-                    </DashboardLayout>
+                    </AppLayout>
                   </RoleGuard>
                 </ProtectedRoute>
               }
@@ -206,9 +207,9 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <RoleGuard allowedRoles={['operator', 'admin']}>
-                    <DashboardLayout>
+                    <AppLayout>
                       <OperatorKYB />
-                    </DashboardLayout>
+                    </AppLayout>
                   </RoleGuard>
                 </ProtectedRoute>
               }
@@ -218,9 +219,9 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <RoleGuard allowedRoles={['operator', 'admin']}>
-                    <DashboardLayout>
+                    <AppLayout>
                       <OperatorInvoices />
-                    </DashboardLayout>
+                    </AppLayout>
                   </RoleGuard>
                 </ProtectedRoute>
               }
@@ -230,9 +231,9 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <RoleGuard allowedRoles={['operator', 'admin']}>
-                    <DashboardLayout>
+                    <AppLayout>
                       <OperatorFunders />
-                    </DashboardLayout>
+                    </AppLayout>
                   </RoleGuard>
                 </ProtectedRoute>
               }
@@ -242,9 +243,9 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <RoleGuard allowedRoles={['operator', 'admin']}>
-                    <DashboardLayout>
+                    <AppLayout>
                       <OperatorPools />
-                    </DashboardLayout>
+                    </AppLayout>
                   </RoleGuard>
                 </ProtectedRoute>
               }
@@ -254,9 +255,9 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <RoleGuard allowedRoles={['operator', 'admin']}>
-                    <DashboardLayout>
+                    <AppLayout>
                       <OperatorInsurance />
-                    </DashboardLayout>
+                    </AppLayout>
                   </RoleGuard>
                 </ProtectedRoute>
               }
@@ -266,9 +267,9 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <RoleGuard allowedRoles={['operator', 'admin']}>
-                    <DashboardLayout>
+                    <AppLayout>
                       <OperatorAudit />
-                    </DashboardLayout>
+                    </AppLayout>
                   </RoleGuard>
                 </ProtectedRoute>
               }
@@ -279,7 +280,9 @@ const App = () => (
               path="/settings"
               element={
                 <ProtectedRoute>
-                  <SettingsNew />
+                  <AppLayout>
+                    <Settings />
+                  </AppLayout>
                 </ProtectedRoute>
               }
             />

@@ -22,9 +22,9 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { supabase } from "@/integrations/supabase/client";
+import { apiClient } from "@/lib/api-client";
 import { CheckCircle, XCircle, Coins, ExternalLink } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { RiftScoreOverride } from "@/components/RiftScoreOverride";
 
 type Invoice = {
@@ -37,6 +37,7 @@ type Invoice = {
   buyer_name: string | null;
   buyer_country: string | null;
   file_hash: string;
+  file_url?: string | null;
   org_id: string;
   mint_tx: string | null;
   cnft_leaf_id: string | null;
@@ -57,11 +58,12 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 export default function OperatorInvoices() {
-  const { toast } = useToast();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [filteredInvoices, setFilteredInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
+  const [sellerOrg, setSellerOrg] = useState<any>(null);
+  const [orgDocuments, setOrgDocuments] = useState<any[]>([]);
   const [pdfUrl, setPdfUrl] = useState("");
   const [note, setNote] = useState("");
   const [processing, setProcessing] = useState(false);
@@ -81,21 +83,11 @@ export default function OperatorInvoices() {
 
   const loadInvoices = async () => {
     try {
-      const { data, error } = await supabase
-        .from("invoices")
-        .select("*")
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-
+      const data = await apiClient.invoices.getAll();
       setInvoices(data || []);
     } catch (error: any) {
       console.error("Error loading invoices:", error);
-      toast({
-        title: "Failed to load invoices",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast.error("Failed to load invoices: " + error.message);
     } finally {
       setLoading(false);
     }
@@ -119,21 +111,19 @@ export default function OperatorInvoices() {
     setFilteredInvoices(filtered);
   };
 
-  const openDrawer = async (invoice: Invoice) => {
+  const handleSelectInvoice = async (invoice: Invoice) => {
     setSelectedInvoice(invoice);
     setNote("");
+    
+    // Load seller organization data
+    loadSellerData(invoice.org_id);
 
-    // Load PDF
-    try {
-      const { data: fileData, error } = await supabase.functions.invoke("invoice-file", {
-        body: { invoice_id: invoice.id },
-      });
-
-      if (!error && fileData?.signed_url) {
-        setPdfUrl(fileData.signed_url);
-      }
-    } catch (error) {
-      console.error("Error loading PDF:", error);
+    // Load PDF from file_url if available
+    if (invoice.file_url) {
+      setPdfUrl(invoice.file_url);
+    } else {
+      setPdfUrl("");
+      console.warn("No file URL available for this invoice");
     }
   };
 
@@ -142,31 +132,52 @@ export default function OperatorInvoices() {
 
     setProcessing(true);
     try {
-      const { error } = await supabase.functions.invoke("invoice-approve", {
-        body: {
-          invoice_id: selectedInvoice.id,
-          note: note || undefined,
-        },
+      await apiClient.invoices.update(selectedInvoice.id, {
+        status: 'approved',
       });
 
-      if (error) throw error;
-
-      toast({
-        title: "Invoice approved",
-        description: "The invoice has been approved successfully",
-      });
+      toast.success("Invoice approved successfully");
 
       setSelectedInvoice(null);
       loadInvoices();
     } catch (error: any) {
       console.error("Approval error:", error);
-      toast({
-        title: "Approval failed",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast.error("Approval failed: " + error.message);
     } finally {
       setProcessing(false);
+    }
+  };
+
+  const handleReject = async () => {
+    if (!selectedInvoice) return;
+
+    setProcessing(true);
+    try {
+      await apiClient.invoices.update(selectedInvoice.id, {
+        status: 'draft',
+      });
+
+      toast.success("Invoice rejected");
+
+      setSelectedInvoice(null);
+      loadInvoices();
+    } catch (error: any) {
+      console.error("Rejection error:", error);
+      toast.error("Rejection failed: " + error.message);
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const loadSellerData = async (orgId: string) => {
+    try {
+      const org = await apiClient.organizations.getById(orgId);
+      setSellerOrg(org);
+      
+      const docs = await apiClient.organizations.getDocuments(orgId);
+      setOrgDocuments(docs);
+    } catch (error) {
+      console.error('Error loading seller data:', error);
     }
   };
 
@@ -175,38 +186,21 @@ export default function OperatorInvoices() {
 
     setProcessing(true);
     try {
-      const { data, error } = await supabase.functions.invoke("invoice-mint-cnft", {
-        body: { invoice_id: selectedInvoice.id },
+      // TODO: Implement Solana cNFT minting
+      // This will require Solana program integration
+      
+      // For now, just update status to 'listed'
+      await apiClient.invoices.update(selectedInvoice.id, {
+        status: 'listed',
       });
 
-      if (error) throw error;
-
-      toast({
-        title: "cNFT minted",
-        description: (
-          <div>
-            Successfully minted compressed NFT on Solana devnet.{" "}
-            <a
-              href={data.explorer_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline"
-            >
-              View transaction
-            </a>
-          </div>
-        ),
-      });
+      toast.success("Invoice listed successfully. cNFT minting coming soon!");
 
       setSelectedInvoice(null);
       loadInvoices();
     } catch (error: any) {
-      console.error("Mint error:", error);
-      toast({
-        title: "Minting failed",
-        description: error.message,
-        variant: "destructive",
-      });
+      console.error("Listing error:", error);
+      toast.error("Listing failed: " + error.message);
     } finally {
       setProcessing(false);
     }
@@ -216,21 +210,22 @@ export default function OperatorInvoices() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Loading invoices...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-slate-600">Loading invoices...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background py-8">
-      <div className="container mx-auto px-4">
+    <div className="container mx-auto px-6 py-8">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold mb-2">Invoice Review Console</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent mb-2">
+            Invoice Review Console
+          </h1>
+          <p className="text-muted-foreground text-lg">
             Review and approve seller invoices for tokenization
           </p>
         </div>
@@ -335,14 +330,14 @@ export default function OperatorInvoices() {
                 {filteredInvoices.map((invoice) => (
                   <TableRow key={invoice.id}>
                     <TableCell className="font-mono text-xs">
-                      {invoice.org_id.slice(0, 8)}
+                      {invoice.org_id?.slice(0, 8) || '-'}
                     </TableCell>
-                    <TableCell>{invoice.invoice_number || invoice.id.slice(0, 8)}</TableCell>
+                    <TableCell>{invoice.invoice_number || invoice.id?.slice(0, 8) || '-'}</TableCell>
                     <TableCell>€{invoice.amount_eur.toLocaleString()}</TableCell>
                     <TableCell>{new Date(invoice.due_date).toLocaleDateString()}</TableCell>
                     <TableCell>{invoice.tenor_days}d</TableCell>
                     <TableCell className="font-mono text-xs">
-                      {invoice.file_hash.slice(0, 8)}...
+                      {invoice.file_hash ? `${invoice.file_hash.slice(0, 8)}...` : '-'}
                     </TableCell>
                     <TableCell>
                       <Badge className={STATUS_COLORS[invoice.status]}>
@@ -376,7 +371,7 @@ export default function OperatorInvoices() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => openDrawer(invoice)}
+                          onClick={() => handleSelectInvoice(invoice)}
                         >
                           Review
                         </Button>
@@ -396,11 +391,10 @@ export default function OperatorInvoices() {
             </Table>
           </CardContent>
         </Card>
-      </div>
 
-      {/* Review Drawer */}
-      <Sheet open={!!selectedInvoice} onOpenChange={() => setSelectedInvoice(null)}>
-        <SheetContent className="w-full sm:max-w-2xl overflow-y-auto">
+        {/* Review Drawer */}
+        <Sheet open={!!selectedInvoice} onOpenChange={() => setSelectedInvoice(null)}>
+          <SheetContent className="w-full sm:max-w-2xl overflow-y-auto">
           {selectedInvoice && (
             <>
               <SheetHeader>
@@ -413,13 +407,22 @@ export default function OperatorInvoices() {
               </SheetHeader>
 
               <Tabs defaultValue="summary" className="mt-6">
-                <TabsList className="grid w-full grid-cols-3">
+                <TabsList className="grid w-full grid-cols-5">
                   <TabsTrigger value="summary">Summary</TabsTrigger>
+                  <TabsTrigger value="seller">Seller</TabsTrigger>
+                  <TabsTrigger value="documents">Documents</TabsTrigger>
+                  <TabsTrigger value="risk">Risk</TabsTrigger>
                   <TabsTrigger value="pdf">PDF</TabsTrigger>
-                  <TabsTrigger value="metadata">Metadata</TabsTrigger>
                 </TabsList>
 
-                <TabsContent value="summary" className="space-y-4 mt-4">
+                <TabsContent value="summary" className="space-y-6 mt-4">
+                  <div className="bg-blue-50 dark:bg-blue-950 p-4 rounded-lg border border-blue-200 dark:border-blue-800">
+                    <h3 className="font-semibold text-blue-900 dark:text-blue-100 mb-2">Invoice Overview</h3>
+                    <p className="text-sm text-blue-700 dark:text-blue-300">
+                      Review all details carefully before approving. Check seller KYB status, documents, and risk assessment.
+                    </p>
+                  </div>
+
                   <div className="space-y-2">
                     <Label>Amount</Label>
                     <div className="text-2xl font-bold">
@@ -438,11 +441,25 @@ export default function OperatorInvoices() {
                     </div>
                   </div>
 
-                  <div>
-                    <Label>Buyer</Label>
-                    <div className="font-medium">{selectedInvoice.buyer_name}</div>
-                    <div className="text-sm text-muted-foreground">
-                      {selectedInvoice.buyer_country}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label>Buyer Name</Label>
+                      <div className="font-medium">{selectedInvoice.buyer_name || 'Not provided'}</div>
+                    </div>
+                    <div>
+                      <Label>Buyer Country</Label>
+                      <div className="font-medium">{selectedInvoice.buyer_country || 'Not provided'}</div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label>Invoice Number</Label>
+                      <div className="font-mono text-sm">{selectedInvoice.invoice_number || 'Auto-generated'}</div>
+                    </div>
+                    <div>
+                      <Label>Created Date</Label>
+                      <div className="text-sm">{new Date(selectedInvoice.created_at).toLocaleString()}</div>
                     </div>
                   </div>
 
@@ -469,6 +486,209 @@ export default function OperatorInvoices() {
                       </a>
                     </div>
                   )}
+                </TabsContent>
+
+                <TabsContent value="seller" className="space-y-6 mt-4">
+                  {sellerOrg ? (
+                    <>
+                      <div className="bg-slate-50 dark:bg-slate-900 p-4 rounded-lg">
+                        <h3 className="font-semibold mb-3">Organization Details</h3>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <Label>Organization Name</Label>
+                            <div className="font-medium">{sellerOrg.name}</div>
+                          </div>
+                          <div>
+                            <Label>Legal Name</Label>
+                            <div className="font-medium">{sellerOrg.legal_name || 'Not provided'}</div>
+                          </div>
+                          <div>
+                            <Label>Country</Label>
+                            <div>{sellerOrg.country || 'Not provided'}</div>
+                          </div>
+                          <div>
+                            <Label>Registration Number</Label>
+                            <div className="font-mono text-sm">{sellerOrg.registration_number || 'Not provided'}</div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="bg-slate-50 dark:bg-slate-900 p-4 rounded-lg">
+                        <h3 className="font-semibold mb-3">KYB Status</h3>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <Label>Verification Status</Label>
+                            <div>
+                              <Badge variant={
+                                sellerOrg.kyb_status === 'approved' ? 'default' :
+                                sellerOrg.kyb_status === 'pending' ? 'secondary' :
+                                'destructive'
+                              }>
+                                {sellerOrg.kyb_status || 'pending'}
+                              </Badge>
+                            </div>
+                          </div>
+                          <div>
+                            <Label>KYB Score</Label>
+                            <div className="text-lg font-bold">{sellerOrg.kyb_score || 'N/A'}</div>
+                          </div>
+                          <div>
+                            <Label>Sanctions Risk</Label>
+                            <div>
+                              <Badge variant={sellerOrg.sanctions_risk === 'low' ? 'default' : 'destructive'}>
+                                {sellerOrg.sanctions_risk || 'Not assessed'}
+                              </Badge>
+                            </div>
+                          </div>
+                          <div>
+                            <Label>Member Since</Label>
+                            <div className="text-sm">{new Date(sellerOrg.created_at).toLocaleDateString()}</div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {sellerOrg.address && (
+                        <div>
+                          <Label>Business Address</Label>
+                          <div className="text-sm bg-slate-50 dark:bg-slate-900 p-3 rounded">
+                            {sellerOrg.address}
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <div className="text-center text-muted-foreground py-8">Loading seller information...</div>
+                  )}
+                </TabsContent>
+
+                <TabsContent value="documents" className="space-y-4 mt-4">
+                  {orgDocuments.length > 0 ? (
+                    <div className="space-y-3">
+                      {orgDocuments.map((doc: any) => (
+                        <div key={doc.id} className="border rounded-lg p-4 hover:bg-slate-50 dark:hover:bg-slate-900">
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <div className="font-medium">{doc.type}</div>
+                              <div className="text-sm text-muted-foreground">{doc.filename}</div>
+                              <div className="text-xs text-muted-foreground mt-1">
+                                Uploaded: {new Date(doc.uploaded_at).toLocaleString()}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Badge variant={
+                                doc.status === 'approved' ? 'default' :
+                                doc.status === 'pending' ? 'secondary' :
+                                'destructive'
+                              }>
+                                {doc.status}
+                              </Badge>
+                              {doc.file_url && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => window.open(doc.file_url, '_blank')}
+                                >
+                                  <ExternalLink className="h-4 w-4" />
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+                          {doc.rejection_reason && (
+                            <div className="mt-2 text-sm text-red-600 dark:text-red-400">
+                              Rejection reason: {doc.rejection_reason}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center text-muted-foreground py-8">
+                      No documents uploaded yet
+                    </div>
+                  )}
+                </TabsContent>
+
+                <TabsContent value="risk" className="space-y-6 mt-4">
+                  <div className="bg-amber-50 dark:bg-amber-950 p-4 rounded-lg border border-amber-200 dark:border-amber-800">
+                    <h3 className="font-semibold text-amber-900 dark:text-amber-100 mb-2">Risk Assessment</h3>
+                    <p className="text-sm text-amber-700 dark:text-amber-300">
+                      Comprehensive risk scoring based on multiple factors including seller KYB, buyer creditworthiness, and invoice characteristics.
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="bg-slate-50 dark:bg-slate-900 p-4 rounded-lg">
+                      <Label>RIFT Score</Label>
+                      <div className="text-3xl font-bold mt-2">
+                        {selectedInvoice.rift_score || 'N/A'}
+                      </div>
+                      <div className="text-sm text-muted-foreground mt-1">
+                        Risk score (0-100, higher is better)
+                      </div>
+                    </div>
+                    <div className="bg-slate-50 dark:bg-slate-900 p-4 rounded-lg">
+                      <Label>RIFT Grade</Label>
+                      <div className="mt-2">
+                        {selectedInvoice.rift_grade ? (
+                          <Badge className={
+                            selectedInvoice.rift_grade === 'A' ? 'bg-green-500 text-white text-2xl px-4 py-2' :
+                            selectedInvoice.rift_grade === 'B' ? 'bg-yellow-500 text-white text-2xl px-4 py-2' :
+                            'bg-red-500 text-white text-2xl px-4 py-2'
+                          }>
+                            {selectedInvoice.rift_grade}
+                          </Badge>
+                        ) : (
+                          <span className="text-muted-foreground">Not graded</span>
+                        )}
+                      </div>
+                      <div className="text-sm text-muted-foreground mt-1">
+                        A: Low risk, B: Medium risk, C: High risk
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <h4 className="font-semibold">Risk Factors</h4>
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center p-3 bg-slate-50 dark:bg-slate-900 rounded">
+                        <span>Seller KYB Status</span>
+                        <Badge variant={sellerOrg?.kyb_status === 'approved' ? 'default' : 'secondary'}>
+                          {sellerOrg?.kyb_status || 'pending'}
+                        </Badge>
+                      </div>
+                      <div className="flex justify-between items-center p-3 bg-slate-50 dark:bg-slate-900 rounded">
+                        <span>Tenor Period</span>
+                        <span className="font-medium">{selectedInvoice.tenor_days} days</span>
+                      </div>
+                      <div className="flex justify-between items-center p-3 bg-slate-50 dark:bg-slate-900 rounded">
+                        <span>Invoice Amount</span>
+                        <span className="font-medium">€{selectedInvoice.amount_eur.toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between items-center p-3 bg-slate-50 dark:bg-slate-900 rounded">
+                        <span>Buyer Country Risk</span>
+                        <Badge variant="outline">{selectedInvoice.buyer_country || 'Unknown'}</Badge>
+                      </div>
+                      <div className="flex justify-between items-center p-3 bg-slate-50 dark:bg-slate-900 rounded">
+                        <span>Documents Verified</span>
+                        <Badge variant={orgDocuments.some(d => d.status === 'approved') ? 'default' : 'secondary'}>
+                          {orgDocuments.filter(d => d.status === 'approved').length} / {orgDocuments.length}
+                        </Badge>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-blue-50 dark:bg-blue-950 p-4 rounded-lg border border-blue-200 dark:border-blue-800">
+                    <h4 className="font-semibold text-blue-900 dark:text-blue-100 mb-2">Recommendation</h4>
+                    <p className="text-sm text-blue-700 dark:text-blue-300">
+                      {selectedInvoice.rift_grade === 'A' 
+                        ? '✓ Low risk - Recommended for approval'
+                        : selectedInvoice.rift_grade === 'B'
+                        ? '⚠ Medium risk - Review carefully before approval'
+                        : selectedInvoice.rift_grade === 'C'
+                        ? '⚠ High risk - Additional due diligence recommended'
+                        : 'ℹ Not yet scored - Complete risk assessment before approval'}
+                    </p>
+                  </div>
                 </TabsContent>
 
                 <TabsContent value="pdf" className="mt-4">

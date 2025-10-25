@@ -1,7 +1,7 @@
 
 import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 import Header from '../components/Header';
 import Hero from '../components/Hero';
 import HowItWorks from '../components/HowItWorks';
@@ -13,30 +13,26 @@ import Footer from '../components/Footer';
 
 const Index = () => {
   const navigate = useNavigate();
+  const { user, loading } = useAuth();
 
   // Redirect logged-in users based on their role
   useEffect(() => {
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (session) {
-        // Get user role and redirect accordingly
-        const { data: userData } = await supabase
-          .from('users')
-          .select('role')
-          .eq('auth_id', session.user.id)
-          .single();
-
-        if (!userData?.role) {
-          navigate('/role-selection');
-        } else if (userData.role === 'seller') {
-          navigate('/dashboard/seller');
-        } else if (userData.role === 'funder') {
-          navigate('/dashboard/funder');
-        } else if (userData.role === 'operator' || userData.role === 'admin') {
-          navigate('/dashboard/operator');
-        }
+    if (loading) return; // Wait for auth to load
+    
+    if (user) {
+      console.log('🏠 Landing page: User is logged in, redirecting...', user);
+      
+      if (!user.role) {
+        navigate('/role-selection', { replace: true });
+      } else if (user.role === 'seller') {
+        navigate('/dashboard/seller', { replace: true });
+      } else if (user.role === 'funder') {
+        navigate('/dashboard/funder', { replace: true });
+      } else if (user.role === 'operator' || user.role === 'admin') {
+        navigate('/dashboard/operator', { replace: true });
       }
-    });
-  }, [navigate]);
+    }
+  }, [user, loading, navigate]);
 
   // Initialize intersection observer for scroll animations
   useEffect(() => {

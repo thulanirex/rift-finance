@@ -53,10 +53,42 @@ export function SellerOnboarding() {
   ]);
 
   const [orgDocuments, setOrgDocuments] = useState<any[]>([]);
+  const [uploading, setUploading] = useState(false);
   const [consents, setConsents] = useState({
     accurate: false,
     gdpr: false,
   });
+
+  const handleFileUpload = async (file: File, docType: string, ownerIndex?: number) => {
+    setUploading(true);
+    try {
+      console.log('📤 Uploading file:', file.name);
+      const result = await apiClient.upload.single(file);
+      
+      if (ownerIndex !== undefined) {
+        // Update beneficial owner document
+        const updated = [...beneficialOwners];
+        updated[ownerIndex].documentUrl = result.file.url;
+        setBeneficialOwners(updated);
+      } else {
+        // Add to organization documents
+        setOrgDocuments([...orgDocuments, { type: docType, url: result.file.url, filename: file.name }]);
+      }
+      
+      toast({
+        title: 'File uploaded',
+        description: `${file.name} uploaded successfully`,
+      });
+    } catch (error: any) {
+      toast({
+        title: 'Upload failed',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const handleNext = () => {
     if (step < STEPS.length - 1) setStep(step + 1);
@@ -69,14 +101,36 @@ export function SellerOnboarding() {
   const handleSubmit = async () => {
     setIsSubmitting(true);
     try {
+      // Validate required fields
+      const countryToUse = organization.registration_country || organization.country;
+      
+      if (!organization.legal_name || !countryToUse) {
+        toast({
+          title: 'Missing Information',
+          description: 'Please fill in the legal name and country',
+          variant: 'destructive',
+        });
+        setIsSubmitting(false);
+        setStep(0); // Go back to first step
+        return;
+      }
+
       // Create organization in MySQL backend
-      console.log('Creating organization:', organization.legal_name);
+      console.log('📝 Creating organization:', organization.legal_name);
+      console.log('📊 Organization data:', {
+        name: organization.legal_name,
+        country: countryToUse,
+        vatNumber: organization.vat_number || undefined,
+        eoriNumber: organization.eori_number || undefined,
+        iban: organization.iban || undefined,
+      });
       
       const orgData = await apiClient.organizations.create({
         name: organization.legal_name,
-        type: 'seller',
-        registration_number: organization.registration_number,
-        country: organization.registration_country,
+        country: countryToUse,
+        vatNumber: organization.vat_number || undefined,
+        eoriNumber: organization.eori_number || undefined,
+        iban: organization.iban || undefined,
       });
       
       console.log('✅ Organization created:', orgData.id);
@@ -418,11 +472,24 @@ export function SellerOnboarding() {
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="border-2 border-dashed rounded-lg p-3 text-center">
-                      <Upload className="mx-auto h-6 w-6 text-muted-foreground" />
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Upload ID + Proof of Address
-                      </p>
+                    <div className="border-2 border-dashed rounded-lg p-3 text-center hover:border-primary cursor-pointer transition-colors">
+                      <input
+                        type="file"
+                        id={`owner-doc-${index}`}
+                        className="hidden"
+                        accept=".pdf,.jpg,.jpeg,.png"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleFileUpload(file, 'owner_document', index);
+                        }}
+                        disabled={uploading}
+                      />
+                      <label htmlFor={`owner-doc-${index}`} className="cursor-pointer">
+                        <Upload className="mx-auto h-6 w-6 text-muted-foreground" />
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {owner.documentUrl ? '✓ Uploaded' : 'Upload ID + Proof of Address'}
+                        </p>
+                      </label>
                     </div>
                   </CardContent>
                 </Card>
@@ -441,15 +508,33 @@ export function SellerOnboarding() {
                   { type: 'vat_certificate', label: 'VAT Certificate' },
                   { type: 'utility_bill', label: 'Utility Bill' },
                   { type: 'bank_statement', label: 'Bank Statement' },
-                ].map((doc) => (
-                  <div key={doc.type} className="border-2 border-dashed rounded-lg p-4">
-                    <p className="text-sm font-medium mb-2">{doc.label}</p>
-                    <div className="text-center">
-                      <Upload className="mx-auto h-6 w-6 text-muted-foreground" />
-                      <p className="text-xs text-muted-foreground mt-1">Click to upload</p>
+                ].map((doc) => {
+                  const uploaded = orgDocuments.find(d => d.type === doc.type);
+                  return (
+                    <div key={doc.type} className="border-2 border-dashed rounded-lg p-4 hover:border-primary cursor-pointer transition-colors">
+                      <p className="text-sm font-medium mb-2">{doc.label}</p>
+                      <input
+                        type="file"
+                        id={`doc-${doc.type}`}
+                        className="hidden"
+                        accept=".pdf,.jpg,.jpeg,.png"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleFileUpload(file, doc.type);
+                        }}
+                        disabled={uploading}
+                      />
+                      <label htmlFor={`doc-${doc.type}`} className="cursor-pointer">
+                        <div className="text-center">
+                          <Upload className="mx-auto h-6 w-6 text-muted-foreground" />
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {uploaded ? `✓ ${uploaded.filename}` : 'Click to upload'}
+                          </p>
+                        </div>
+                      </label>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
               <p className="text-xs text-muted-foreground">
                 * Required: Certificate of Incorporation, Shareholders Register, Proof of Address

@@ -1,4 +1,5 @@
 import { useParams, useNavigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
 import { AppLayout } from '@/components/AppLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -15,89 +16,120 @@ import {
   Hash,
   Users,
   TrendingUp,
-  AlertCircle
+  AlertCircle,
+  Loader2
 } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
+import { apiClient } from '@/lib/api-client';
+import { toast } from 'sonner';
 
 export default function InvoiceDetailNew() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [invoice, setInvoice] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
-  // Mock invoice data with blockchain details
-  const invoice = {
-    id: 'INV-2024-001',
-    tokenId: 'rift_inv_7x9k2m4p',
-    nftMint: '7xKJ9...mNp2Q',
-    amount: 125000,
-    currency: 'EUR',
-    issueDate: '2024-10-01',
-    dueDate: '2024-11-30',
-    tenor: 60,
-    status: 'funded',
+  useEffect(() => {
+    loadInvoice();
+  }, [id]);
+
+  const loadInvoice = async () => {
+    try {
+      const data = await apiClient.invoices.getById(id!);
+      setInvoice(data);
+    } catch (error: any) {
+      console.error('Failed to load invoice:', error);
+      toast.error('Failed to load invoice: ' + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <AppLayout>
+        <div className="min-h-screen flex items-center justify-center">
+          <div className="text-center">
+            <Loader2 className="h-12 w-12 animate-spin mx-auto mb-4 text-primary" />
+            <p className="text-muted-foreground">Loading invoice...</p>
+          </div>
+        </div>
+      </AppLayout>
+    );
+  }
+
+  if (!invoice) {
+    return (
+      <AppLayout>
+        <div className="min-h-screen flex items-center justify-center">
+          <div className="text-center">
+            <AlertCircle className="h-12 w-12 mx-auto mb-4 text-destructive" />
+            <p className="text-muted-foreground">Invoice not found</p>
+            <Button onClick={() => navigate('/invoices')} className="mt-4">Back to Invoices</Button>
+          </div>
+        </div>
+      </AppLayout>
+    );
+  }
+
+  // Format invoice data for display
+  const invoiceData = {
+    id: invoice.invoice_number || invoice.id,
+    tokenId: invoice.id,
+    nftMint: invoice.cnft_mint || 'Not minted',
+    amount: invoice.amount_eur,
+    currency: invoice.currency || 'EUR',
+    issueDate: new Date(invoice.created_at).toLocaleDateString(),
+    dueDate: new Date(invoice.due_date).toLocaleDateString(),
+    tenor: invoice.tenor_days,
+    status: invoice.status,
     
     // Parties
     seller: {
-      name: 'AutoParts GmbH',
-      wallet: '5KHxQ...7mNp',
+      name: invoice.org_name || 'Seller Organization',
+      wallet: 'Not connected',
       verified: true,
-      creditScore: 850,
-      rating: 'A'
+      creditScore: invoice.rift_score || 0,
+      rating: invoice.rift_grade || 'N/A'
     },
     buyer: {
-      name: 'BMW AG',
-      wallet: '3JKmP...9xQw',
-      verified: true,
-      creditScore: 920,
-      rating: 'AAA'
+      name: invoice.counterparty || 'Buyer',
+      wallet: 'Not connected',
+      verified: false,
+      creditScore: 0,
+      rating: 'N/A'
     },
     funder: {
-      name: 'Institutional Funder',
-      wallet: '8NpLq...4rTy',
-      verified: true,
-      amount: 125000
+      name: 'Pending',
+      wallet: 'N/A',
+      verified: false,
+      amount: 0
     },
     
     // Blockchain data
     blockchain: {
       network: 'Solana Devnet',
-      mintTx: '2MnKp5wXz...7xQw',
-      fundTx: '9PqLm3rTy...5kNp',
-      verificationHash: '0x7a8f9e2d1c4b6a3e5f8d9c2b1a4e7f6d',
-      ipfsHash: 'Qm...abc123',
-      status: 'on-chain',
-      confirmations: 1247
+      mintTx: invoice.mint_tx || 'Not minted',
+      fundTx: 'Pending',
+      verificationHash: invoice.file_hash || 'N/A',
+      ipfsHash: 'N/A',
+      status: invoice.cnft_mint ? 'on-chain' : 'off-chain',
+      confirmations: invoice.cnft_mint ? 1 : 0
     },
     
     // Documents
-    documents: [
+    documents: invoice.file_url ? [
       {
-        name: 'Purchase Order',
-        type: 'purchase_order',
-        hash: '0x1a2b3c4d...',
-        ipfs: 'QmPO...xyz',
-        verified: true,
-        verifiedBy: 'Operator',
-        verifiedAt: '2024-10-02'
-      },
-      {
-        name: 'Bill of Lading',
-        type: 'bill_of_lading',
-        hash: '0x5e6f7g8h...',
-        ipfs: 'QmBOL...abc',
-        verified: true,
-        verifiedBy: 'Operator',
-        verifiedAt: '2024-10-02'
-      },
-      {
-        name: 'Commercial Invoice',
-        type: 'commercial_invoice',
-        hash: '0x9i0j1k2l...',
-        ipfs: 'QmCI...def',
-        verified: true,
-        verifiedBy: 'Operator',
-        verifiedAt: '2024-10-02'
+        name: 'Invoice PDF',
+        type: 'invoice',
+        hash: invoice.file_hash || 'N/A',
+        ipfs: 'N/A',
+        verified: invoice.status === 'approved' || invoice.status === 'listed' || invoice.status === 'funded',
+        verifiedBy: invoice.status === 'approved' ? 'Operator' : null,
+        verifiedAt: invoice.status === 'approved' ? new Date(invoice.updated_at).toLocaleDateString() : null,
+        url: invoice.file_url
       }
-    ],
+    ] : [],
     
     // Signatures
     signatures: [
@@ -136,7 +168,7 @@ export default function InvoiceDetailNew() {
     }
   };
 
-  const verificationProgress = (invoice.documents.filter(d => d.verified).length / invoice.documents.length) * 100;
+  const verificationProgress = invoiceData.documents.length > 0 ? (invoiceData.documents.filter(d => d.verified).length / invoiceData.documents.length) * 100 : 0;
 
   return (
     <AppLayout>
@@ -150,7 +182,7 @@ export default function InvoiceDetailNew() {
               </Button>
               <div>
                 <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-                  {invoice.id}
+                  {invoiceData.id}
                 </h1>
                 <p className="text-slate-600 dark:text-slate-400 mt-1">
                   Tokenized Invoice NFT
@@ -159,17 +191,23 @@ export default function InvoiceDetailNew() {
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <Badge className="bg-green-100 text-green-700 dark:bg-green-950/20 dark:text-green-400">
+            <Badge className={
+              invoiceData.status === 'funded' ? 'bg-green-100 text-green-700 dark:bg-green-950/20 dark:text-green-400' :
+              invoiceData.status === 'approved' || invoiceData.status === 'listed' ? 'bg-blue-100 text-blue-700 dark:bg-blue-950/20 dark:text-blue-400' :
+              'bg-yellow-100 text-yellow-700 dark:bg-yellow-950/20 dark:text-yellow-400'
+            }>
               <CheckCircle className="h-3 w-3 mr-1" />
-              Funded
+              {invoiceData.status}
             </Badge>
-            <Button
-              variant="outline"
-              onClick={() => window.open(`https://explorer.solana.com/address/${invoice.nftMint}?cluster=devnet`, '_blank')}
-            >
-              <ExternalLink className="h-4 w-4 mr-2" />
-              View NFT on Explorer
-            </Button>
+            {invoiceData.nftMint !== 'Not minted' && (
+              <Button
+                variant="outline"
+                onClick={() => window.open(`https://explorer.solana.com/address/${invoiceData.nftMint}?cluster=devnet`, '_blank')}
+              >
+                <ExternalLink className="h-4 w-4 mr-2" />
+                View NFT on Explorer
+              </Button>
+            )}
           </div>
         </div>
 
@@ -190,7 +228,7 @@ export default function InvoiceDetailNew() {
                   <div>
                     <div className="text-xs text-slate-500 dark:text-slate-400">NFT Mint Address</div>
                     <div className="font-mono text-sm font-medium text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                      {invoice.nftMint}
+                      {invoiceData.nftMint}
                       <Button variant="ghost" size="icon" className="h-6 w-6">
                         <ExternalLink className="h-3 w-3" />
                       </Button>
@@ -199,29 +237,29 @@ export default function InvoiceDetailNew() {
                   <div>
                     <div className="text-xs text-slate-500 dark:text-slate-400">Token ID</div>
                     <div className="font-mono text-sm font-medium text-slate-900 dark:text-slate-100">
-                      {invoice.tokenId}
+                      {invoiceData.tokenId}
                     </div>
                   </div>
                   <div>
                     <div className="text-xs text-slate-500 dark:text-slate-400">Verification Hash</div>
                     <div className="font-mono text-xs text-slate-600 dark:text-slate-400">
-                      {invoice.blockchain.verificationHash}
+                      {invoiceData.blockchain.verificationHash}
                     </div>
                   </div>
                   <div>
                     <div className="text-xs text-slate-500 dark:text-slate-400">IPFS Storage</div>
                     <div className="font-mono text-xs text-slate-600 dark:text-slate-400 flex items-center gap-1">
-                      {invoice.blockchain.ipfsHash}
+                      {invoiceData.blockchain.ipfsHash}
                       <Download className="h-3 w-3" />
                     </div>
                   </div>
                   <div>
                     <div className="text-xs text-slate-500 dark:text-slate-400">Network</div>
-                    <Badge variant="outline">{invoice.blockchain.network}</Badge>
+                    <Badge variant="outline">{invoiceData.blockchain.network}</Badge>
                   </div>
                   <div>
                     <div className="text-xs text-slate-500 dark:text-slate-400">Confirmations</div>
-                    <div className="text-sm font-medium text-green-600">{invoice.blockchain.confirmations}</div>
+                    <div className="text-sm font-medium text-green-600">{invoiceData.blockchain.confirmations}</div>
                   </div>
                 </div>
               </CardContent>
@@ -245,16 +283,16 @@ export default function InvoiceDetailNew() {
                     </div>
                     <div>
                       <div className="font-medium text-slate-900 dark:text-slate-100">Seller</div>
-                      <div className="text-sm text-slate-600 dark:text-slate-400">{invoice.seller.name}</div>
-                      <div className="font-mono text-xs text-slate-500">{invoice.seller.wallet}</div>
+                      <div className="text-sm text-slate-600 dark:text-slate-400">{invoiceData.seller.name}</div>
+                      <div className="font-mono text-xs text-slate-500">{invoiceData.seller.wallet}</div>
                     </div>
                   </div>
                   <div className="text-right">
                     <Badge className="bg-green-100 text-green-700 dark:bg-green-950/20 dark:text-green-400 mb-1">
                       Verified
                     </Badge>
-                    <div className="text-sm font-medium">Credit Score: {invoice.seller.creditScore}</div>
-                    <Badge variant="outline" className="mt-1">Rating: {invoice.seller.rating}</Badge>
+                    <div className="text-sm font-medium">Credit Score: {invoiceData.seller.creditScore}</div>
+                    <Badge variant="outline" className="mt-1">Rating: {invoiceData.seller.rating}</Badge>
                   </div>
                 </div>
 
@@ -266,16 +304,16 @@ export default function InvoiceDetailNew() {
                     </div>
                     <div>
                       <div className="font-medium text-slate-900 dark:text-slate-100">Buyer</div>
-                      <div className="text-sm text-slate-600 dark:text-slate-400">{invoice.buyer.name}</div>
-                      <div className="font-mono text-xs text-slate-500">{invoice.buyer.wallet}</div>
+                      <div className="text-sm text-slate-600 dark:text-slate-400">{invoiceData.buyer.name}</div>
+                      <div className="font-mono text-xs text-slate-500">{invoiceData.buyer.wallet}</div>
                     </div>
                   </div>
                   <div className="text-right">
                     <Badge className="bg-green-100 text-green-700 dark:bg-green-950/20 dark:text-green-400 mb-1">
                       Verified
                     </Badge>
-                    <div className="text-sm font-medium">Credit Score: {invoice.buyer.creditScore}</div>
-                    <Badge variant="outline" className="mt-1">Rating: {invoice.buyer.rating}</Badge>
+                    <div className="text-sm font-medium">Credit Score: {invoiceData.buyer.creditScore}</div>
+                    <Badge variant="outline" className="mt-1">Rating: {invoiceData.buyer.rating}</Badge>
                   </div>
                 </div>
 
@@ -287,15 +325,15 @@ export default function InvoiceDetailNew() {
                     </div>
                     <div>
                       <div className="font-medium text-slate-900 dark:text-slate-100">Funder</div>
-                      <div className="text-sm text-slate-600 dark:text-slate-400">{invoice.funder.name}</div>
-                      <div className="font-mono text-xs text-slate-500">{invoice.funder.wallet}</div>
+                      <div className="text-sm text-slate-600 dark:text-slate-400">{invoiceData.funder.name}</div>
+                      <div className="font-mono text-xs text-slate-500">{invoiceData.funder.wallet}</div>
                     </div>
                   </div>
                   <div className="text-right">
                     <Badge className="bg-green-100 text-green-700 dark:bg-green-950/20 dark:text-green-400 mb-1">
                       Verified
                     </Badge>
-                    <div className="text-sm font-medium">Funded: €{invoice.funder.amount.toLocaleString()}</div>
+                    <div className="text-sm font-medium">Funded: €{invoiceData.funder.amount.toLocaleString()}</div>
                   </div>
                 </div>
               </CardContent>
@@ -314,7 +352,7 @@ export default function InvoiceDetailNew() {
                 <Progress value={verificationProgress} className="mt-2" />
               </CardHeader>
               <CardContent className="space-y-3">
-                {invoice.documents.map((doc, idx) => (
+                {invoiceData.documents.map((doc, idx) => (
                   <div key={idx} className="flex items-center justify-between p-3 rounded-lg border border-slate-200 dark:border-slate-800">
                     <div className="flex items-center gap-3">
                       <FileText className="h-4 w-4 text-slate-600" />
@@ -345,7 +383,7 @@ export default function InvoiceDetailNew() {
                 <CardDescription>Wallet-based digital signatures</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
-                {invoice.signatures.map((sig, idx) => (
+                {invoiceData.signatures.map((sig, idx) => (
                   <div key={idx} className="flex items-center justify-between p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50">
                     <div>
                       <div className="font-medium text-sm">{sig.party}</div>
@@ -381,27 +419,27 @@ export default function InvoiceDetailNew() {
                 <div>
                   <div className="text-xs text-slate-500 dark:text-slate-400">Amount</div>
                   <div className="text-2xl font-bold text-slate-900 dark:text-slate-100">
-                    €{invoice.amount.toLocaleString()}
+                    €{invoiceData.amount.toLocaleString()}
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <div className="text-xs text-slate-500 dark:text-slate-400">Issue Date</div>
-                    <div className="text-sm font-medium">{invoice.issueDate}</div>
+                    <div className="text-sm font-medium">{invoiceData.issueDate}</div>
                   </div>
                   <div>
                     <div className="text-xs text-slate-500 dark:text-slate-400">Due Date</div>
-                    <div className="text-sm font-medium">{invoice.dueDate}</div>
+                    <div className="text-sm font-medium">{invoiceData.dueDate}</div>
                   </div>
                   <div>
                     <div className="text-xs text-slate-500 dark:text-slate-400">Tenor</div>
-                    <div className="text-sm font-medium">{invoice.tenor} days</div>
+                    <div className="text-sm font-medium">{invoiceData.tenor} days</div>
                   </div>
                   <div>
                     <div className="text-xs text-slate-500 dark:text-slate-400">Days Remaining</div>
                     <div className="text-sm font-medium flex items-center gap-1">
                       <Clock className="h-3 w-3" />
-                      {invoice.financing.daysRemaining}
+                      {invoiceData.financing.daysRemaining}
                     </div>
                   </div>
                 </div>
@@ -415,26 +453,26 @@ export default function InvoiceDetailNew() {
               <CardContent className="space-y-3">
                 <div className="flex justify-between">
                   <span className="text-sm text-slate-600 dark:text-slate-400">Advance Rate</span>
-                  <span className="font-medium">{invoice.financing.advanceRate}%</span>
+                  <span className="font-medium">{invoiceData.financing.advanceRate}%</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-sm text-slate-600 dark:text-slate-400">Discount Rate</span>
-                  <span className="font-medium">{invoice.financing.discountRate}%</span>
+                  <span className="font-medium">{invoiceData.financing.discountRate}%</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-sm text-slate-600 dark:text-slate-400">Advance Amount</span>
-                  <span className="font-medium text-green-600">€{invoice.financing.advanceAmount.toLocaleString()}</span>
+                  <span className="font-medium text-green-600">€{invoiceData.financing.advanceAmount.toLocaleString()}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-sm text-slate-600 dark:text-slate-400">Fee</span>
-                  <span className="font-medium">€{invoice.financing.fee.toLocaleString()}</span>
+                  <span className="font-medium">€{invoiceData.financing.fee.toLocaleString()}</span>
                 </div>
                 <div className="pt-3 border-t border-slate-200 dark:border-slate-800">
                   <div className="flex justify-between">
                     <span className="text-sm font-medium">Expected Repayment</span>
-                    <span className="font-bold">€{invoice.financing.expectedRepayment.toLocaleString()}</span>
+                    <span className="font-bold">€{invoiceData.financing.expectedRepayment.toLocaleString()}</span>
                   </div>
-                  <div className="text-xs text-slate-500 mt-1">Due: {invoice.financing.repaymentDate}</div>
+                  <div className="text-xs text-slate-500 mt-1">Due: {invoiceData.financing.repaymentDate}</div>
                 </div>
               </CardContent>
             </Card>

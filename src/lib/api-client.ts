@@ -97,6 +97,21 @@ class ApiClient {
       this.request(`/organizations/${id}`, {
         method: 'DELETE',
       }),
+    getDocuments: (orgId: string) => this.request(`/organizations/${orgId}/documents`),
+    addDocument: (orgId: string, data: { type: string; filename: string; fileUrl: string; fileHash?: string }) =>
+      this.request(`/organizations/${orgId}/documents`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+    updateDocumentStatus: (orgId: string, docId: string, data: { status: string; rejectionReason?: string }) =>
+      this.request(`/organizations/${orgId}/documents/${docId}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      }),
+    deleteDocument: (orgId: string, docId: string) =>
+      this.request(`/organizations/${orgId}/documents/${docId}`, {
+        method: 'DELETE',
+      }),
   };
 
   // Invoices endpoints
@@ -177,6 +192,55 @@ class ApiClient {
         method: 'POST',
         body: JSON.stringify(data),
       }),
+  };
+
+  // Upload endpoints
+  upload = {
+    single: async (file: File) => {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const headers: HeadersInit = {};
+      if (this.token) {
+        headers['Authorization'] = `Bearer ${this.token}`;
+      }
+
+      const response = await fetch(`${API_URL}/upload/single`, {
+        method: 'POST',
+        headers,
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: 'Upload failed' }));
+        throw new Error(error.error || `HTTP ${response.status}`);
+      }
+
+      return response.json();
+    },
+
+    multiple: async (files: File[]) => {
+      const formData = new FormData();
+      files.forEach(file => formData.append('files', file));
+
+      const headers: HeadersInit = {};
+      if (this.token) {
+        headers['Authorization'] = `Bearer ${this.token}`;
+      }
+
+      const response = await fetch(`${API_URL}/upload/multiple`, {
+        method: 'POST',
+        headers,
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: 'Upload failed' }));
+        throw new Error(error.error || `HTTP ${response.status}`);
+      }
+
+      return response.json();
+    },
   };
 
   // Solana blockchain endpoints

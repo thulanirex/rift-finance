@@ -73,15 +73,32 @@ export function AppLayout({ children }: AppLayoutProps) {
 
   const operatorNav = [
     { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard/operator' },
-    { icon: Users, label: 'KYB Review', path: '/operator/kyb' },
-    { icon: FileText, label: 'Invoices', path: '/operator/invoices' },
-    { icon: Shield, label: 'Pools', path: '/operator/pools' },
+    { icon: Users, label: 'KYB Review', path: '/ops/kyb' },
+    { icon: FileText, label: 'Invoices', path: '/ops/invoices' },
+    { icon: Shield, label: 'Pools', path: '/ops/pools' },
+    { icon: Settings, label: 'Settings', path: '/settings' },
+  ];
+
+  const adminNav = [
+    { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard/operator' },
+    { icon: Users, label: 'KYB Review', path: '/ops/kyb' },
+    { icon: FileText, label: 'Invoices', path: '/ops/invoices' },
+    { icon: Shield, label: 'Audit Logs', path: '/ops/audit' },
+    { icon: Settings, label: 'Settings', path: '/settings' },
   ];
 
   const navigation = user?.role === 'seller' ? sellerNav
     : user?.role === 'funder' ? funderNav
     : user?.role === 'operator' ? operatorNav
+    : user?.role === 'admin' ? adminNav
     : [];
+
+  // Debug logging
+  useEffect(() => {
+    console.log('AppLayout - User:', user);
+    console.log('AppLayout - User Role:', user?.role);
+    console.log('AppLayout - Navigation items:', navigation.length);
+  }, [user, navigation]);
 
   const handleLogout = () => {
     // Clear auth token

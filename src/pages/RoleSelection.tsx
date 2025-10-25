@@ -54,30 +54,50 @@ const ROLES = [
 
 export default function RoleSelection() {
   const navigate = useNavigate();
-  const { user, refreshUser } = useAuth();
+  const { refreshUser } = useAuth();
   const [selectedRole, setSelectedRole] = useState<UserRole | null>(null);
   const [loading, setLoading] = useState(false);
 
   const handleSelectRole = async () => {
-    if (!selectedRole || !user) return;
+    if (!selectedRole) return;
 
     setLoading(true);
     try {
+      console.log('🎯 Selected role:', selectedRole);
+      
+      // Get current user
+      const user = await apiClient.auth.getUser();
+      console.log('👤 Current user:', user);
+      
+      // Update role via API
+      console.log('📝 Updating user role...');
       await apiClient.users.update(user.id, { role: selectedRole });
+      console.log('✅ Role updated successfully');
+
+      // CRITICAL: Refresh the AuthContext user data
+      console.log('🔄 Refreshing user context...');
+      await refreshUser();
+      console.log('✅ User context refreshed');
 
       toast.success(`Welcome! You're now a ${selectedRole}.`);
-      await refreshUser();
+
+      // Small delay to ensure state is updated
+      await new Promise(resolve => setTimeout(resolve, 100));
 
       // Redirect based on role
+      console.log('🚀 Navigating to dashboard...');
       if (selectedRole === 'seller') {
-        navigate('/onboarding/seller');
+        console.log('➡️ Going to /onboarding/seller');
+        navigate('/onboarding/seller', { replace: true });
       } else if (selectedRole === 'funder') {
-        navigate('/dashboard/funder');
+        console.log('➡️ Going to /dashboard/funder');
+        navigate('/dashboard/funder', { replace: true });
       } else if (selectedRole === 'operator') {
-        navigate('/dashboard/operator');
+        console.log('➡️ Going to /dashboard/operator');
+        navigate('/dashboard/operator', { replace: true });
       }
     } catch (error: any) {
-      console.error('Error selecting role:', error);
+      console.error('❌ Error selecting role:', error);
       toast.error(error.message || 'Failed to select role');
     } finally {
       setLoading(false);
