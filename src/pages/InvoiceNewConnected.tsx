@@ -41,11 +41,27 @@ export default function InvoiceNewConnected() {
 
   // Calculate SHA-256 hash of file
   const calculateFileHash = async (file: File): Promise<string> => {
-    const buffer = await file.arrayBuffer();
-    const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-    return hashHex;
+    try {
+      // Check if crypto.subtle is available
+      if (!window.crypto || !window.crypto.subtle) {
+        console.warn('crypto.subtle not available, using fallback hash');
+        // Fallback: use a simple hash based on file properties
+        return `${file.name}-${file.size}-${file.lastModified}`.split('').reduce((a, b) => {
+          a = ((a << 5) - a) + b.charCodeAt(0);
+          return a & a;
+        }, 0).toString(16);
+      }
+
+      const buffer = await file.arrayBuffer();
+      const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+      return hashHex;
+    } catch (error) {
+      console.error('Hash calculation error:', error);
+      // Fallback hash
+      return `fallback-${file.name}-${file.size}-${Date.now()}`;
+    }
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
